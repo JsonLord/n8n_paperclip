@@ -1,0 +1,558 @@
+{
+  "name": "Competitor negative review research with Genspark and Airtop",
+  "nodes": [
+    {
+      "parameters": {
+        "amount": 10,
+        "unit": "minutes"
+      },
+      "id": "91a0be83-4adf-46db-b0b0-97bea4aabbf0",
+      "name": "Wait for the research to finish",
+      "type": "n8n-nodes-base.wait",
+      "position": [
+        3504,
+        464
+      ],
+      "webhookId": "803cfb09-899a-4667-aaf4-c5212adf5767",
+      "typeVersion": 1.1
+    },
+    {
+      "parameters": {
+        "workflowInputs": {
+          "values": [
+            {
+              "name": "Client ID"
+            }
+          ]
+        }
+      },
+      "id": "c4323a6b-2514-4147-a0e6-8995c2b53c41",
+      "name": "Start with a client ID",
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "position": [
+        864,
+        464
+      ],
+      "typeVersion": 1.1
+    },
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "mode": "list",
+          "value": "gpt-4.1-mini"
+        },
+        "options": {}
+      },
+      "id": "4730fec1-b9bf-4e15-b994-b2a3b4a06476",
+      "name": "Chat model",
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "position": [
+        4192,
+        704
+      ],
+      "typeVersion": 1.2
+    },
+    {
+      "parameters": {
+        "jsCode": "// Get dynamic client ID from previous node\nconst clientId = $input.first().json[\"Client ID\"]?.trim();\n\nif (!clientId) {\n  throw new Error(\"Client ID not provided\");\n}\n\n// Find the matching row from the Google Sheet\nconst matchedRow = items.find(item => item.json['Client ID']?.trim() === clientId);\n\nif (!matchedRow) {\n  throw new Error(`Client ID \"${clientId}\" not found in sheet`);\n}\n\n// Collect all competitors dynamically\nconst competitors = Object.keys(matchedRow.json)\n  .filter(key => key.toLowerCase().startsWith('competitor'))\n  .map(key => matchedRow.json[key])\n  .filter(url => !!url);\n\n// Return final data\nreturn [\n  {\n    json: {\n      \"Client ID\": clientId,\n      \"My Business\": matchedRow.json['Website URL'] || '',\n      \"Industry\": matchedRow.json['Client Industry'] || '',\n      \"Competitors\": competitors\n    }\n  }\n];\n"
+      },
+      "id": "2a4c125e-0343-467b-a156-f3671555b3fc",
+      "name": "Read website and competitors",
+      "type": "n8n-nodes-base.code",
+      "position": [
+        1424,
+        464
+      ],
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "b2c80f80-1116-4409-96ad-ab7b87c656e1",
+              "name": "research_prompt",
+              "type": "string",
+              "value": "=ACT AS: An expert competitive intelligence analyst and strategic marketing consultant with 10+ years of experience in market research, competitor analysis, and business positioning. You specialize in identifying competitor weaknesses, analyzing customer sentiment, and developing actionable strategies to capture market share from established players. YOUR EXPERTISE INCLUDES: Deep web research and data mining across multiple platforms Customer complaint pattern analysis and sentiment evaluation Strategic positioning and messaging development Competitive differentiation strategy Content marketing and SEO competitive analysis Business intelligence gathering and reporting YOUR APPROACH: Conduct thorough, methodical research using multiple data sources Provide specific, actionable recommendations with clear implementation steps Focus on data-driven insights backed by real customer feedback Deliver professional-grade reports and strategic documents Prioritize quick wins while building long-term competitive advantage COMPETITOR ANALYSIS & STRATEGIC POSITIONING TEMPLATE My Business: {{ $('Read website and competitors').item.json['Website URL'] }} Industry: {{ $('Read website and competitors').item.json['Client Industry'] }} Competitors to analyze: [Competitor 1 URL] {{ $('Read website and competitors').item.json.Competitors[0] }} [Competitor 2 URL] {{ $('Read website and competitors').item.json.Competitors[1] }} [Competitor 3 URL] {{ $('Read website and competitors').item.json.Competitors[2] }} [Competitor 4 URL] {{ $('Read website and competitors').item.json.Competitors[3] }} [Competitor 5 URL] {{ $('Read website and competitors').item.json.Competitors[4] }} What I need you to do: 1. Analyze Each Competitor: Visit their websites and understand their services Search for negative reviews on Trustpilot, Google Reviews, Reddit Find customer complaints using searches like \"[Competitor] problems complaints issues\" Look for patterns in what customers hate about each competitor 2. Find Their Weaknesses: What do customers complain about most? What technical problems do they have? Where is their customer service failing? What makes customers switch away from them? 3. Create Recommendations: How can I position my business as better than these competitors? What campaign messages should I use? What specific actions should I take to win their customers? 4. Give Me: A presentation/document with competitor weaknesses A spreadsheet with action items I can start immediately Specific examples of negative reviews and complaints Campaign ideas that target their weak points Suggest 30 Topics for the Blog based upon the analysis Goal: Help me understand exactly where competitors are failing so I can position my business as the superior choice and steal their unhappy customers. File Delivery Requirements: Compile all the files in a single document in a presentable document PDF/HTML or Slide and provide direct download links that work without login. I have given you Sample DIRECT DOWNLOAD LINK (No Login Required): https://gensparkpublicblob.blob.core.windows.net/user-upload-image/document/tooluse_Xu9I3dCUS9Orz_eqYUuL6A/goldys_master_competitive_intelligence_report.html Share both the raw URLs and clickable links Test links to ensure they're publicly accessible If any link requires authentication, create alternative accessible versions Include both web-viewable and downloadable formats when possible"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "e3a23f4e-9cda-46f2-a4b4-28f2b29d3e6e",
+      "name": "Build the research prompt",
+      "type": "n8n-nodes-base.set",
+      "position": [
+        1712,
+        464
+      ],
+      "typeVersion": 3.4
+    },
+    {
+      "parameters": {
+        "profileName": "YOUR_AIRTOP_PROFILE_NAME",
+        "additionalFields": {}
+      },
+      "id": "ffe57eb9-3d8c-492e-a290-af0280a93e6d",
+      "name": "Start browser session",
+      "type": "n8n-nodes-base.airtop",
+      "position": [
+        2112,
+        464
+      ],
+      "typeVersion": 1
+    },
+    {
+      "parameters": {
+        "resource": "window",
+        "url": "https://www.genspark.ai/",
+        "getLiveView": true,
+        "includeNavigationBar": true,
+        "additionalFields": {}
+      },
+      "id": "31649854-83c8-4e59-a11b-5872a1df9af6",
+      "name": "Open Genspark",
+      "type": "n8n-nodes-base.airtop",
+      "position": [
+        2384,
+        464
+      ],
+      "typeVersion": 1
+    },
+    {
+      "parameters": {
+        "resource": "interaction",
+        "operation": "type",
+        "text": "={{ $('Build the research prompt').item.json.research_prompt }}",
+        "pressEnterKey": true,
+        "elementDescription": "You are a browser automation assistant working inside the https://www.genspark.ai/ platform.  Your task is to:  Read the message input by the user in the chat box (this is stored in a variable called chatMessage).  Locate the search bar on the homepage that contains the placeholder text \"Ask anything, create anything\".  Click on this search bar to focus it.  Enter the value of chatMessage into the search bar as if the user typed it.  Press Enter or trigger the search programmatically to initiate the query.  Wait for the full response to load (whether it’s text, image, code block, chart, or structured content).  Determine the user's intent based on the query:  If it's a question or topic (e.g., \"What is SEO?\"), extract and return the main answer only.  If it's a request for an image (e.g., \"Show me a lion picture\"), return the relevant image only.  If it's a request for code (e.g., \"Give me Python function\"), extract the code block and click the copy button, if present.  If it’s a chart, form, or structured block, return only that relevant section.  Return only the output that satisfies the user’s search intent — no UI elements, metadata, or buttons.",
+        "additionalFields": {}
+      },
+      "id": "f9ebe1cb-0a0f-4e16-a8a2-6eb8938342bb",
+      "name": "Ask Genspark the question",
+      "type": "n8n-nodes-base.airtop",
+      "position": [
+        3232,
+        464
+      ],
+      "typeVersion": 1
+    },
+    {
+      "parameters": {
+        "resource": "extraction",
+        "operation": "scrape"
+      },
+      "id": "03a19604-b5c6-4734-a303-c3ebc6da67ee",
+      "name": "Scrape the answer",
+      "type": "n8n-nodes-base.airtop",
+      "position": [
+        3792,
+        464
+      ],
+      "typeVersion": 1
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ $json.data.modelResponse.scrapedContent.text }}",
+        "hasOutputParser": true,
+        "options": {}
+      },
+      "id": "555a0438-c2fa-4a9a-ab3b-5cdbd44acfef",
+      "name": "Pull out the report link",
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "position": [
+        4256,
+        464
+      ],
+      "typeVersion": 2.1
+    },
+    {
+      "parameters": {
+        "jsonSchemaExample": "{\n\t\"View Online\": \"View Online\"\n}"
+      },
+      "id": "eae609de-0635-4954-889c-59165dcfba07",
+      "name": "Output Parser - Report link",
+      "type": "@n8n/n8n-nodes-langchain.outputParserStructured",
+      "position": [
+        4416,
+        704
+      ],
+      "typeVersion": 1.3
+    },
+    {
+      "parameters": {
+        "operation": "terminate",
+        "sessionId": "={{ $('Scrape the answer').item.json.sessionId }}"
+      },
+      "id": "4be11a88-4b86-4c70-a666-40168392224d",
+      "name": "Close browser session",
+      "type": "n8n-nodes-base.airtop",
+      "position": [
+        4912,
+        464
+      ],
+      "typeVersion": 1
+    },
+    {
+      "parameters": {},
+      "id": "8b153d8c-ca35-4fe1-9141-2b8f6f3664c4",
+      "name": "Done",
+      "type": "n8n-nodes-base.noOp",
+      "position": [
+        5200,
+        464
+      ],
+      "typeVersion": 1
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "YOUR_CLIENT_SHEET_ID"
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "name",
+          "value": "Clients"
+        },
+        "filtersUI": {
+          "values": [
+            {
+              "lookupColumn": "Client ID",
+              "lookupValue": "={{ $json[\"Client ID\"] }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "383220bb-132d-45b4-ba41-0ad1649f89d8",
+      "name": "Look up the client row",
+      "type": "n8n-nodes-base.googleSheets",
+      "position": [
+        1152,
+        464
+      ],
+      "typeVersion": 4.6
+    },
+    {
+      "parameters": {
+        "resource": "interaction",
+        "elementDescription": "You need to click the 'X' button located in the top-right corner of the video popup",
+        "additionalFields": {}
+      },
+      "id": "4600b236-ccc3-443b-aa88-2c3db1479796",
+      "name": "Close the popup",
+      "type": "n8n-nodes-base.airtop",
+      "position": [
+        2944,
+        464
+      ],
+      "typeVersion": 1
+    },
+    {
+      "parameters": {
+        "amount": 10
+      },
+      "id": "6f57f3e3-f98c-4de2-ab47-92e6209098bd",
+      "name": "Wait for the page",
+      "type": "n8n-nodes-base.wait",
+      "position": [
+        2672,
+        464
+      ],
+      "webhookId": "1fadf478-9343-421f-b936-9792292388cd",
+      "typeVersion": 1.1
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "YOUR_OUTPUT_SHEET_ID"
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "name",
+          "value": "Reports"
+        },
+        "columns": {
+          "value": {
+            "Output": "={{ $json.output[\"View Online\"] }}"
+          },
+          "schema": [],
+          "mappingMode": "defineBelow",
+          "matchingColumns": [],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "id": "75c7f2da-f427-43f2-9388-6f089a7abe92",
+      "name": "Save the report link",
+      "type": "n8n-nodes-base.googleSheets",
+      "position": [
+        4640,
+        464
+      ],
+      "typeVersion": 4.7
+    },
+    {
+      "parameters": {
+        "content": "## 1. Load the client\nA parent workflow passes a client ID. The matching row gives the website, industry and every competitor column, which are folded into one long research prompt.",
+        "height": 344,
+        "width": 1188,
+        "color": 7
+      },
+      "id": "4ed8329c-a886-4d29-acf4-919ad3a4c123",
+      "name": "Sticky Note - Section 1",
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        784,
+        304
+      ],
+      "typeVersion": 1
+    },
+    {
+      "parameters": {
+        "content": "## 2. Run the research in a browser\nAirtop opens Genspark with a saved profile, dismisses the intro popup, types the prompt and waits for the deep research to finish before scraping the answer.",
+        "height": 320,
+        "width": 2028,
+        "color": 7
+      },
+      "id": "4be7098c-2011-42d0-bb35-c688e238ecdd",
+      "name": "Sticky Note - Section 2",
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        2032,
+        336
+      ],
+      "typeVersion": 1
+    },
+    {
+      "parameters": {
+        "content": "## 3. Save the report\nAn AI step pulls the report link out of the scraped page, saves it to your sheet, then closes the browser session so you are not billed for idle time.",
+        "height": 560,
+        "width": 1348,
+        "color": 7
+      },
+      "id": "d0d93a1e-0bfb-4f9c-b47d-62c85797684a",
+      "name": "Sticky Note - Section 3",
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        4112,
+        336
+      ],
+      "typeVersion": 1
+    },
+    {
+      "parameters": {
+        "content": "# Competitor negative review research with Genspark and Airtop\n\nTakes a client ID, looks up that client's website and competitors in a Google Sheet, then drives Genspark in a cloud browser to research what customers complain about most in those competitors' reviews. The finished report link is saved back to your sheet. Built as a sub-workflow, so it can be triggered per client from a parent workflow.\n\n### How it works\n1. A parent workflow calls this one with a client ID.\n2. The client row is looked up in your sheet, and a Code node collects the website, industry and every column starting with Competitor.\n3. Those details are folded into one long analyst prompt asking for negative review patterns, positioning gaps and recommended actions.\n4. Airtop opens Genspark in a cloud browser using a saved profile, closes the intro popup, types the prompt and submits it.\n5. Genspark deep research takes a while, so the workflow waits before scraping the finished answer off the page.\n6. An AI step pulls the report link out of the scraped text and appends it to your output sheet.\n7. The browser session is closed so you are not billed for idle time.\n\n### Setup\n1. Add your Airtop and OpenAI API keys, and connect your Google Sheets account.\n2. Replace YOUR_CLIENT_SHEET_ID with the sheet holding your clients. It needs Client ID, Website URL, Client Industry and one or more Competitor columns.\n3. Replace YOUR_OUTPUT_SHEET_ID with the sheet that should collect the report links.\n4. In Airtop create a browser profile, log into Genspark inside it once, and put that profile name in Start browser session.\n\n### Customization\nEdit the prompt in Build the research prompt to research pricing, features or anything else instead of reviews.",
+        "height": 1113,
+        "width": 844
+      },
+      "id": "e9a4a3db-507b-433d-9c49-977f25346756",
+      "name": "Sticky Note - Overview",
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        -192,
+        64
+      ],
+      "typeVersion": 1
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Chat model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Pull out the report link",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Open Genspark": {
+      "main": [
+        [
+          {
+            "node": "Wait for the page",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Close the popup": {
+      "main": [
+        [
+          {
+            "node": "Ask Genspark the question",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Scrape the answer": {
+      "main": [
+        [
+          {
+            "node": "Pull out the report link",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Wait for the page": {
+      "main": [
+        [
+          {
+            "node": "Close the popup",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Save the report link": {
+      "main": [
+        [
+          {
+            "node": "Close browser session",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Close browser session": {
+      "main": [
+        [
+          {
+            "node": "Done",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Start browser session": {
+      "main": [
+        [
+          {
+            "node": "Open Genspark",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Look up the client row": {
+      "main": [
+        [
+          {
+            "node": "Read website and competitors",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Start with a client ID": {
+      "main": [
+        [
+          {
+            "node": "Look up the client row",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Pull out the report link": {
+      "main": [
+        [
+          {
+            "node": "Save the report link",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Ask Genspark the question": {
+      "main": [
+        [
+          {
+            "node": "Wait for the research to finish",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build the research prompt": {
+      "main": [
+        [
+          {
+            "node": "Start browser session",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Output Parser - Report link": {
+      "ai_outputParser": [
+        [
+          {
+            "node": "Pull out the report link",
+            "type": "ai_outputParser",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read website and competitors": {
+      "main": [
+        [
+          {
+            "node": "Build the research prompt",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Wait for the research to finish": {
+      "main": [
+        [
+          {
+            "node": "Scrape the answer",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "availableInMCP": false
+  },
+  "versionId": "1ebf6e1e-1aa5-4de1-843e-cf757be0c5aa",
+  "meta": {
+    "instanceId": "582967534d0f909d196b97f9e6921342777aea87b46fa52df165389db1fb8ccf"
+  },
+  "id": "l0bW33eZYKGuooGA",
+  "tags": []
+}

@@ -1,0 +1,751 @@
+{
+  "name": "Generate fact-checked research reports with Bright Data, GPT-5.6 and Gemini",
+  "nodes": [
+    {
+      "parameters": {
+        "content": "## Generate fact-checked research reports with Bright Data\n\nAsk a research question. Get back a cited report where every claim has been checked against the sources by a second, independent model.\n\n### How it works\n1. A form collects the question, the research depth and a delivery address.\n2. GPT-5.6 Luna splits the question into 4-6 focused sub-queries.\n3. Bright Data's SERP API searches each one. URLs are deduped and capped.\n4. Bright Data's Web Unlocker fetches every page as markdown, past bot protection.\n5. Gemini 3.5 Flash writes the report from that corpus only.\n6. GPT-5.6 Terra audits each claim against the source text and labels it supported, unsupported or contradicted.\n7. The verified report is emailed and appended to a Google Sheet.\n\nUnsupported claims are surfaced rather than deleted. Trimming them silently hides the model's failure mode.\n\n### Setup\n- [ ] Create a Bright Data account. The free tier is 5,000 credits a month. Add a **SERP API** zone and a **Web Unlocker API** zone.\n- [ ] Add a **Header Auth** credential called `Bright Data API`: name `Authorization`, value `Bearer YOUR_KEY`. Attach it to both HTTP Request nodes.\n- [ ] Open **Set Research Parameters** and set `serp_zone` and `unlocker_zone` to your own zone names.\n- [ ] Add OpenAI and Google Gemini credentials to the three model nodes.\n- [ ] Add Gmail and Google Sheets credentials, and paste your own sheet URL into **Append Log to Sheets**.\n\n### Customization\nDepth maps to source count: quick 6, standard 12, exhaustive 24. Swap the auditor to `gpt-5.6-luna` for a cheaper run. Point the SERP node at Bing or Yandex and nothing downstream changes.",
+        "height": 1023,
+        "width": 560
+      },
+      "id": "5577527d-c00b-429e-8382-ba59b5a857ac",
+      "name": "Sticky Note main",
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        -240,
+        -64
+      ],
+      "typeVersion": 1
+    },
+    {
+      "parameters": {
+        "content": "## 1. Plan the research\nA form takes the question, then a small model splits it into focused sub-queries.",
+        "height": 590,
+        "width": 1064,
+        "color": 7
+      },
+      "id": "a8a3da1c-4f75-43c6-9a23-8ab80ac9d786",
+      "name": "Sticky Note sec1",
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        400,
+        160
+      ],
+      "typeVersion": 1
+    },
+    {
+      "parameters": {
+        "content": "## 2. Search with Bright Data\nEach sub-query hits the SERP API. `brd_json=1` returns a parsed SERP, so there is no HTML to parse downstream.",
+        "height": 375,
+        "width": 696,
+        "color": 7
+      },
+      "id": "ed8907ed-78a4-4b35-b2b7-162b2e8bf22d",
+      "name": "Sticky Note sec2",
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        1648,
+        144
+      ],
+      "typeVersion": 1
+    },
+    {
+      "parameters": {
+        "content": "## 3. Fetch the pages\nWeb Unlocker returns markdown, roughly 13x smaller than raw HTML. That is the difference between a corpus that fits the context window and one that does not.",
+        "height": 397,
+        "width": 696,
+        "color": 7
+      },
+      "id": "b554a38c-35ed-448e-a65a-2516b6d7126f",
+      "name": "Sticky Note sec3",
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        2528,
+        128
+      ],
+      "typeVersion": 1
+    },
+    {
+      "parameters": {
+        "content": "## 4. Write the report\nGemini 3.5 Flash drafts from the corpus only, with inline source numbers.",
+        "height": 599,
+        "width": 440,
+        "color": 7
+      },
+      "id": "b1570f56-a321-48c4-ada6-f03ae196215d",
+      "name": "Sticky Note sec4",
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        3408,
+        144
+      ],
+      "typeVersion": 1
+    },
+    {
+      "parameters": {
+        "content": "## 5. Fact-check every claim\nA second model checks each claim against the raw source text and returns a verdict: supported, unsupported or contradicted.",
+        "height": 599,
+        "width": 584,
+        "color": 7
+      },
+      "id": "a8a11d6a-1a9f-4471-8d8e-889d1d075bfc",
+      "name": "Sticky Note sec5",
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        3920,
+        144
+      ],
+      "typeVersion": 1
+    },
+    {
+      "parameters": {
+        "content": "## 6. Deliver and log\nThe verified report goes out by email, and every run is appended to a Google Sheet.",
+        "height": 815,
+        "width": 440,
+        "color": 7
+      },
+      "id": "b8d6243b-ed77-45c5-b30e-b4c48d9be6f4",
+      "name": "Sticky Note sec6",
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        4688,
+        -64
+      ],
+      "typeVersion": 1
+    },
+    {
+      "parameters": {
+        "content": "## Rate limits\nUnder load Bright Data answers **HTTP 200** with a rate-limit notice instead of the page, so retries never fire. **Clean HTML and Prepare Text** detects that body and tells you to lower the batch size.",
+        "height": 225,
+        "width": 380,
+        "color": 3
+      },
+      "id": "cf954ca2-c8fa-47cd-a350-05d095a10d1f",
+      "name": "Sticky Note warn",
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        2528,
+        576
+      ],
+      "typeVersion": 1
+    },
+    {
+      "parameters": {
+        "formTitle": "Deep Research Agent",
+        "formDescription": "Ask a research question. You will get a cited report back by email, with every claim checked against its sources.",
+        "formFields": {
+          "values": [
+            {
+              "fieldLabel": "Research question",
+              "placeholder": "e.g. How are mid-market SaaS companies pricing AI features in 2026?",
+              "requiredField": true
+            },
+            {
+              "fieldLabel": "Depth",
+              "fieldType": "dropdown",
+              "fieldOptions": {
+                "values": [
+                  {
+                    "option": "quick"
+                  },
+                  {
+                    "option": "standard"
+                  },
+                  {
+                    "option": "exhaustive"
+                  }
+                ]
+              },
+              "requiredField": true
+            },
+            {
+              "fieldLabel": "Email",
+              "fieldType": "email",
+              "placeholder": "where the report goes",
+              "requiredField": true
+            }
+          ]
+        },
+        "options": {
+          "buttonLabel": "Run research"
+        }
+      },
+      "id": "056be9f3-50b9-4dbe-98aa-4a4c9bd07ac2",
+      "name": "When Research Requested",
+      "type": "n8n-nodes-base.formTrigger",
+      "position": [
+        464,
+        304
+      ],
+      "typeVersion": 2.5,
+      "webhookId": "b938166e-87b8-464b-bf0d-cdc474f238a8"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "a1",
+              "name": "question",
+              "type": "string",
+              "value": "={{ $json['Research question'] }}"
+            },
+            {
+              "id": "a2",
+              "name": "depth",
+              "type": "string",
+              "value": "={{ $json.Depth }}"
+            },
+            {
+              "id": "a3",
+              "name": "email",
+              "type": "string",
+              "value": "={{ $json.Email }}"
+            },
+            {
+              "id": "a4",
+              "name": "max_sources",
+              "type": "number",
+              "value": "={{ ({ quick: 6, standard: 12, exhaustive: 24 })[$json.Depth] || 12 }}"
+            },
+            {
+              "id": "a6",
+              "name": "serp_zone",
+              "type": "string",
+              "value": "serp_api1"
+            },
+            {
+              "id": "a7",
+              "name": "unlocker_zone",
+              "type": "string",
+              "value": "web_unlocker1"
+            },
+            {
+              "id": "a8",
+              "name": "country",
+              "type": "string",
+              "value": "us"
+            },
+            {
+              "id": "a9",
+              "name": "run_id",
+              "type": "string",
+              "value": "={{ $execution.id }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "94f08b29-ad98-42a1-98e8-cfb0c3606b00",
+      "name": "Set Research Parameters",
+      "type": "n8n-nodes-base.set",
+      "position": [
+        704,
+        304
+      ],
+      "typeVersion": 3.4
+    },
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "mode": "list",
+          "value": "gpt-5.6-luna"
+        },
+        "builtInTools": {},
+        "options": {
+          "temperature": 0.2
+        }
+      },
+      "id": "b47f5068-27f0-4b91-9965-46bde19c0b6a",
+      "name": "OpenAI GPT-5.6 Luna Planner",
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "position": [
+        960,
+        544
+      ],
+      "typeVersion": 1.3,
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "text": "=Research question: {{ $json.question }}\nDepth: {{ $json.depth }}\n\nBreak this into 4 to 6 search queries that together cover the question. Each query must be phrased the way someone would actually type it into Google - short, concrete, no boolean operators. Cover different angles: current state, numbers and benchmarks, opposing views, and recent developments. Do not repeat the original question verbatim.",
+        "schemaType": "fromJson",
+        "jsonSchemaExample": "{\n  \"subqueries\": [\n    { \"query\": \"saas ai feature pricing benchmarks 2026\", \"angle\": \"benchmarks\" }\n  ]\n}",
+        "options": {}
+      },
+      "id": "85c7918d-c70c-439c-a27b-c3b1210536fd",
+      "name": "Plan Sub-Queries Extraction",
+      "type": "@n8n/n8n-nodes-langchain.informationExtractor",
+      "position": [
+        944,
+        304
+      ],
+      "typeVersion": 1.2
+    },
+    {
+      "parameters": {
+        "fieldToSplitOut": "output.subqueries",
+        "options": {}
+      },
+      "id": "0508927e-2bcd-4417-b5b1-aa4853e9ed55",
+      "name": "Split Sub-Queries",
+      "type": "n8n-nodes-base.splitOut",
+      "position": [
+        1312,
+        304
+      ],
+      "typeVersion": 1
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.brightdata.com/request",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ zone: $('Set Research Parameters').first().json.serp_zone, url: 'https://www.google.com/search?q=' + encodeURIComponent($json.query) + '&gl=' + $('Set Research Parameters').first().json.country + '&brd_json=1', format: 'json' }) }}",
+        "options": {
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          },
+          "timeout": 120000
+        }
+      },
+      "id": "ce7de645-77e7-4c94-bc70-e78ab5490541",
+      "name": "Post to Bright Data SERP API",
+      "type": "n8n-nodes-base.httpRequest",
+      "maxTries": 3,
+      "position": [
+        1712,
+        304
+      ],
+      "retryOnFail": true,
+      "typeVersion": 4.4,
+      "waitBetweenTries": 2000,
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Pull organic results out of every SERP response, dedupe by host+path, and drop\n// the domains that never carry substance.\n//\n// NOTE: n8n's Code sandbox has no `URL` constructor (also no fetch/crypto/process),\n// so hosts are parsed with a regex. Verified against this n8n build: the URL\n// constructor throws ReferenceError, and swallowing that in a try/catch\n// silently empties the whole run.\nconst SKIP = /(^|\\.)(youtube|facebook|instagram|tiktok|pinterest|x)\\.com$/i;\n\nfunction splitUrl(link) {\n  const m = String(link).match(/^https?:\\/\\/([^\\/?#]+)([^?#]*)/i);\n  if (!m) return null;\n  return { host: m[1].replace(/^www\\./i, '').toLowerCase(), path: m[2] || '/' };\n}\n\nconst seen = new Set();\nconst out = [];\nlet serpCount = 0, unparsable = 0;\n\nfor (const item of $input.all()) {\n  let payload = item.json.body ?? item.json;\n  if (typeof payload === 'string') {\n    try { payload = JSON.parse(payload); }\n    catch { unparsable++; continue; }\n  }\n  const organic = payload.organic ?? payload.organic_results ?? [];\n  serpCount += organic.length;\n\n  for (const r of organic) {\n    const link = r.link || r.url;\n    if (!link) continue;\n    const u = splitUrl(link);\n    if (!u || SKIP.test(u.host)) continue;\n    const key = u.host + u.path;\n    if (seen.has(key)) continue;\n    seen.add(key);\n    out.push({ json: {\n      url: link,\n      host: u.host,\n      title: r.title ?? '',\n      snippet: r.description ?? r.snippet ?? '',\n      rank: r.rank ?? r.position ?? null,\n    }});\n  }\n}\n\nif (out.length === 0) {\n  // Say which stage actually failed instead of guessing at the cause.\n  throw new Error(\n    `No usable sources. Bright Data returned ${$input.all().length} response(s) ` +\n    `carrying ${serpCount} organic result(s); ${unparsable} could not be parsed as JSON. ` +\n    (serpCount === 0\n      ? 'Zero organic results means the SERP zone name in Research Config does not match a zone in your Bright Data account, or the queries returned nothing.'\n      : 'Results came back but every URL was filtered out - loosen the SKIP list.')\n  );\n}\n\nreturn out;"
+      },
+      "id": "8396259d-93e8-41fc-84b7-6688c74e442e",
+      "name": "Extract and Deduplicate URLs",
+      "type": "n8n-nodes-base.code",
+      "position": [
+        1952,
+        304
+      ],
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "maxItems": "={{ $('Set Research Parameters').first().json.max_sources }}"
+      },
+      "id": "80332274-26de-4aed-bb53-bcd51e58a576",
+      "name": "Limit to Max Sources",
+      "type": "n8n-nodes-base.limit",
+      "position": [
+        2192,
+        304
+      ],
+      "typeVersion": 1
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.brightdata.com/request",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ zone: $('Set Research Parameters').first().json.unlocker_zone, url: $json.url, format: 'raw', data_format: 'markdown' }) }}",
+        "options": {
+          "batching": {
+            "batch": {
+              "batchSize": 2,
+              "batchInterval": 2000
+            }
+          },
+          "response": {
+            "response": {
+              "neverError": true,
+              "responseFormat": "text"
+            }
+          },
+          "timeout": 120000
+        }
+      },
+      "id": "0cc547e9-6415-47a7-b061-be79fe18d37f",
+      "name": "Post to Web Unlocker API",
+      "type": "n8n-nodes-base.httpRequest",
+      "maxTries": 3,
+      "position": [
+        2592,
+        304
+      ],
+      "retryOnFail": true,
+      "typeVersion": 4.4,
+      "waitBetweenTries": 2000,
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Strip markup, collapse whitespace, and cap each source so one bloated page\n// cannot crowd the others out of the context window.\n//\n// Bright Data can answer HTTP 200 with a plain-text rate-limit notice instead of\n// a page. Because the status is 200, n8n's retryOnFail never fires, so that case\n// is detected here by body text and counted rather than silently dropped.\nconst PER_SOURCE_CHARS = 6000;\nconst MIN_USABLE_CHARS = 200;\nconst RATE_LIMITED = /rate limit has been applied|please retry in a few seconds/i;\n\nconst sources = $('Limit to Max Sources').all();\nconst out = [];\nlet rateLimited = 0, tooShort = 0;\n\n$input.all().forEach((item, i) => {\n  const meta = sources[i]?.json ?? {};\n  let text = item.json.data ?? item.json.body ?? '';\n  if (typeof text !== 'string') text = JSON.stringify(text);\n\n  if (RATE_LIMITED.test(text)) { rateLimited++; return; }\n\n  text = text\n    .replace(/<script[\\s\\S]*?<\\/script>/gi, ' ')\n    .replace(/<style[\\s\\S]*?<\\/style>/gi, ' ')\n    .replace(/<[^>]+>/g, ' ')\n    .replace(/&nbsp;/g, ' ')\n    .replace(/\\s+/g, ' ')\n    .trim();\n\n  if (text.length < MIN_USABLE_CHARS) { tooShort++; return; }\n\n  out.push({ json: {\n    id: out.length + 1,\n    url: meta.url ?? '',\n    host: meta.host ?? '',\n    title: meta.title ?? '',\n    chars: text.length,\n    text: text.slice(0, PER_SOURCE_CHARS),\n  }});\n});\n\nif (rateLimited > 0) {\n  console.log(`${rateLimited} page(s) were rate limited by Bright Data and skipped. Lower the batch size on the Web Unlocker node if this keeps happening.`);\n}\n\nif (out.length === 0) {\n  throw new Error(\n    `No readable pages. Of ${$input.all().length} fetch(es): ${rateLimited} rate limited, ` +\n    `${tooShort} returned too little text. ` +\n    (rateLimited > 0\n      ? 'Rate limiting is the cause here - open the Web Unlocker node, Settings, Batching, and drop the batch size to 2 with a 2000ms interval.'\n      : 'Check that the Web Unlocker zone name in Research Config matches a zone in your Bright Data account.')\n  );\n}\n\nreturn out;"
+      },
+      "id": "14da2cd6-abc0-4240-992f-a69296473851",
+      "name": "Clean HTML and Prepare Text",
+      "type": "n8n-nodes-base.code",
+      "position": [
+        2832,
+        304
+      ],
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "aggregate": "aggregateAllItemData",
+        "destinationFieldName": "sources",
+        "options": {}
+      },
+      "id": "4c3a71dd-777f-4b8c-849e-ed98f4f66b72",
+      "name": "Aggregate to Create Corpus",
+      "type": "n8n-nodes-base.aggregate",
+      "position": [
+        3072,
+        304
+      ],
+      "typeVersion": 1
+    },
+    {
+      "parameters": {
+        "modelName": "models/gemini-3.5-flash",
+        "options": {
+          "temperature": 0.3
+        }
+      },
+      "id": "10f9c028-2195-4a23-a6e7-f8f578a563e2",
+      "name": "Gemini Model for Writing",
+      "type": "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+      "position": [
+        3472,
+        544
+      ],
+      "typeVersion": 1
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=You are a research analyst. Write a report answering this question:\n\n{{ $('Set Research Parameters').first().json.question }}\n\nSOURCES (cite by [id]):\n{{ $json.sources.map(s => '[' + s.id + '] ' + s.title + ' - ' + s.url + '\\n' + s.text).join('\\n\\n---\\n\\n') }}\n\nRules:\n- Every factual claim carries a citation like [3]. A sentence with no citation must be framed as your own reading, not as fact.\n- Where sources disagree, say so and cite both. Do not average them into a fake consensus.\n- Numbers, dates, and named entities must appear in a source. Never estimate one to fill a gap.\n- If the sources do not answer part of the question, write what is missing under Gaps.\n\nStructure:\n## Answer\nThree to five sentences, straight at the question.\n\n## What the sources show\nThe substance, organised by theme, not by source.\n\n## Disagreements\nWhere the record conflicts.\n\n## Gaps\nWhat the sources do not cover.\n\n## Sources\nNumbered list with titles and URLs.",
+        "batching": {}
+      },
+      "id": "31ea8261-ff09-4b32-90ac-4e808fe0aaf1",
+      "name": "Compose Research Report",
+      "type": "@n8n/n8n-nodes-langchain.chainLlm",
+      "position": [
+        3456,
+        304
+      ],
+      "typeVersion": 1.9,
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "mode": "list",
+          "value": "gpt-5.6-terra"
+        },
+        "builtInTools": {},
+        "options": {
+          "temperature": 0
+        }
+      },
+      "id": "b5144721-09bd-4946-a80b-f046870f8618",
+      "name": "OpenAI GPT-5.6 Terra Auditor",
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "position": [
+        4000,
+        544
+      ],
+      "typeVersion": 1.3,
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "text": "=You are auditing a research report against the sources it cites. You did not write it and you have no stake in it being right.\n\nREPORT:\n{{ $json.text }}\n\nSOURCES:\n{{ $('Aggregate to Create Corpus').first().json.sources.map(s => '[' + s.id + '] ' + s.url + '\\n' + s.text).join('\\n\\n---\\n\\n') }}\n\nFor every factual claim in the report, return a verdict:\n- supported: the cited source states it\n- unsupported: no source states it\n- contradicted: a source states the opposite\n\nQuote the exact source line you checked against. If you cannot find the line, the verdict is unsupported. Do not be generous - a claim that is merely plausible is unsupported.",
+        "schemaType": "fromJson",
+        "jsonSchemaExample": "{\n  \"claims\": [\n    { \"claim\": \"Mid-market SaaS added usage-based AI pricing in 2026\", \"verdict\": \"supported\", \"source_id\": 3, \"evidence\": \"exact line quoted from the source\" }\n  ],\n  \"summary\": { \"supported\": 0, \"unsupported\": 0, \"contradicted\": 0 }\n}",
+        "options": {}
+      },
+      "id": "e648f94a-5616-4c61-85bf-5441c5bde475",
+      "name": "Verify Claims in Report",
+      "type": "@n8n/n8n-nodes-langchain.informationExtractor",
+      "position": [
+        3984,
+        304
+      ],
+      "typeVersion": 1.2
+    },
+    {
+      "parameters": {
+        "jsCode": "// Staple the audit onto the report. Flagged claims stay visible - a reader\n// who cannot see what failed has no way to judge what passed.\nconst cfg = $('Set Research Parameters').first().json;\nconst report = $('Compose Research Report').first().json.text ?? '';\n// single-item input: the auditor runs on one report, so it emits one item.\nconst audit = $input.first().json.output ?? {};\nconst claims = audit.claims ?? [];\nconst sources = $('Aggregate to Create Corpus').first().json.sources ?? [];\n\nconst failed = claims.filter(c => c.verdict !== 'supported');\nconst supported = claims.length - failed.length;\nconst confidence = claims.length ? Math.round((supported / claims.length) * 100) : 0;\n\nlet flags = '';\nif (failed.length) {\n  flags = '\\n\\n## Flagged claims\\n\\n' + failed\n    .map(c => `- **${c.verdict}** - ${c.claim}` + (c.evidence ? `\\n  - checked against: ${c.evidence}` : ''))\n    .join('\\n');\n} else {\n  flags = '\\n\\n## Flagged claims\\n\\nNone. Every claim traced to a source.';\n}\n\nconst header = `# ${cfg.question}\\n\\n` +\n  `**Confidence:** ${confidence}% of claims verified (${supported}/${claims.length})  \\n` +\n  `**Sources read:** ${sources.length}  \\n` +\n  `**Depth:** ${cfg.depth}\\n\\n---\\n\\n`;\n\nreturn [{\n  json: {\n    run_id: cfg.run_id,\n    question: cfg.question,\n    depth: cfg.depth,\n    email: cfg.email,\n    sources_read: sources.length,\n    claims_total: claims.length,\n    claims_supported: supported,\n    claims_flagged: failed.length,\n    confidence,\n    report_markdown: header + report + flags,\n    source_urls: sources.map(s => s.url).join(', '),\n  },\n}];"
+      },
+      "id": "aa132f59-cc45-48f6-b789-ea32e12631e8",
+      "name": "Combine Audit and Report",
+      "type": "n8n-nodes-base.code",
+      "position": [
+        4352,
+        304
+      ],
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "sendTo": "={{ $json.email }}",
+        "subject": "=Research: {{ $json.question }}",
+        "emailType": "text",
+        "message": "={{ $json.report_markdown }}",
+        "options": {}
+      },
+      "id": "3d34181c-5a7e-4dbd-b894-b513f0203151",
+      "name": "Send Report via Email",
+      "type": "n8n-nodes-base.gmail",
+      "position": [
+        4752,
+        96
+      ],
+      "typeVersion": 2.2,
+      "webhookId": "d1a7e022-f004-4402-9a5f-fa02eee290e9",
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "mode": "url",
+          "value": "https://docs.google.com/spreadsheets/d/REPLACE_WITH_YOUR_SHEET_ID/edit"
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "name",
+          "value": "Research Log"
+        },
+        "columns": {
+          "value": {},
+          "mappingMode": "autoMapInputData",
+          "matchingColumns": []
+        },
+        "options": {}
+      },
+      "id": "7d1825b0-6a5c-4ae8-88ef-aa030a6c17e5",
+      "name": "Append Log to Sheets",
+      "type": "n8n-nodes-base.googleSheets",
+      "position": [
+        4752,
+        544
+      ],
+      "typeVersion": 4.7,
+      "onError": "continueRegularOutput"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Split Sub-Queries": {
+      "main": [
+        [
+          {
+            "node": "Post to Bright Data SERP API",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Limit to Max Sources": {
+      "main": [
+        [
+          {
+            "node": "Post to Web Unlocker API",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Compose Research Report": {
+      "main": [
+        [
+          {
+            "node": "Verify Claims in Report",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Set Research Parameters": {
+      "main": [
+        [
+          {
+            "node": "Plan Sub-Queries Extraction",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Verify Claims in Report": {
+      "main": [
+        [
+          {
+            "node": "Combine Audit and Report",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "When Research Requested": {
+      "main": [
+        [
+          {
+            "node": "Set Research Parameters",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Combine Audit and Report": {
+      "main": [
+        [
+          {
+            "node": "Send Report via Email",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Append Log to Sheets",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Gemini Model for Writing": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Compose Research Report",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Post to Web Unlocker API": {
+      "main": [
+        [
+          {
+            "node": "Clean HTML and Prepare Text",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Aggregate to Create Corpus": {
+      "main": [
+        [
+          {
+            "node": "Compose Research Report",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Clean HTML and Prepare Text": {
+      "main": [
+        [
+          {
+            "node": "Aggregate to Create Corpus",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenAI GPT-5.6 Luna Planner": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Plan Sub-Queries Extraction",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Plan Sub-Queries Extraction": {
+      "main": [
+        [
+          {
+            "node": "Split Sub-Queries",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract and Deduplicate URLs": {
+      "main": [
+        [
+          {
+            "node": "Limit to Max Sources",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenAI GPT-5.6 Terra Auditor": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Verify Claims in Report",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Post to Bright Data SERP API": {
+      "main": [
+        [
+          {
+            "node": "Extract and Deduplicate URLs",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "availableInMCP": false
+  },
+  "versionId": "d8269839-25b4-4bbc-8276-705b0dfaa5b1",
+  "meta": {
+    "instanceId": "582967534d0f909d196b97f9e6921342777aea87b46fa52df165389db1fb8ccf"
+  },
+  "id": "OsCFGM9k5rYxmDCo",
+  "tags": []
+}

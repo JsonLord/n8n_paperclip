@@ -1,0 +1,448 @@
+{
+  "name": "Lead Back Research",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "triggerAtHour": 16
+            }
+          ]
+        }
+      },
+      "id": "6bc55586-fece-44a7-96a6-0b40d3e9ae4e",
+      "name": "Daily 4PM Trigger",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "position": [
+        -160,
+        688
+      ],
+      "typeVersion": 1.3
+    },
+    {
+      "parameters": {
+        "jsCode": "// Calculate 24-26 hour window from now\nconst now = DateTime.now();\nconst timeMin = now.plus({ hours: 24 }).toISO();\nconst timeMax = now.plus({ hours: 26 }).toISO();\n\nreturn [{\n  json: {\n    timeMin,\n    timeMax,\n    checkTime: now.toISO()\n  }\n}];"
+      },
+      "id": "3da36712-aa13-4fc5-a5b9-e4dadc8004c7",
+      "name": "Calculate Tomorrow Window",
+      "type": "n8n-nodes-base.code",
+      "position": [
+        64,
+        688
+      ],
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "operation": "getAll",
+        "calendar": {
+          "mode": "list",
+          "value": "primary"
+        },
+        "returnAll": true,
+        "options": {
+          "orderBy": "startTime"
+        }
+      },
+      "id": "005fecf0-d30c-457b-a64b-54f7a14e614b",
+      "name": "Fetch Calendar Events",
+      "type": "n8n-nodes-base.googleCalendar",
+      "position": [
+        288,
+        688
+      ],
+      "typeVersion": 1.3
+    },
+    {
+      "parameters": {
+        "jsCode": "const items = $input.all();\nconst keywords = ['discovery', 'call', 'meeting', 'nca'];\n\n// ── Deduplication via static data ───────────────────────\n// Track processed eventIds so the same calendar event is never\n// briefed twice, even if it falls inside the time-window on\n// consecutive daily runs.\nconst staticData = $getWorkflowStaticData('global');\nif (!staticData.processedEvents) {\n  staticData.processedEvents = {};\n}\n\n// Purge entries older than 30 days to prevent memory bloat\nconst THIRTY_DAYS_MS = 30 * 24 * 60 * 60 * 1000;\nconst now = Date.now();\nfor (const [id, ts] of Object.entries(staticData.processedEvents)) {\n  if (now - Number(ts) > THIRTY_DAYS_MS) {\n    delete staticData.processedEvents[id];\n  }\n}\n\nconst callEvents = items.filter(item => {\n  const title = (item.json.summary || '').toLowerCase();\n  return keywords.some(kw => title.includes(kw));\n});\n\nif (callEvents.length === 0) {\n  return [];\n}\n\n// Filter out already-processed events\nconst newEvents = callEvents.filter(event => {\n  const eventId = event.json.id;\n  if (staticData.processedEvents[eventId]) {\n    return false; // already briefed — skip\n  }\n  return true;\n});\n\nif (newEvents.length === 0) {\n  return []; // all events already processed\n}\n\n// Extract org name and contact from attendees\nconst results = newEvents.map(event => {\n  const attendees = event.json.attendees || [];\n  const externalAttendees = attendees.filter(a => !a.organizer && !a.self);\n  const contact = externalAttendees[0] || {};\n  const contactName = contact.displayName || contact.email || 'Unknown Contact';\n  const contactEmail = contact.email || '';\n\n  let orgName = 'Unknown Organization';\n  if (contactEmail && contactEmail.includes('@')) {\n    const domain = contactEmail.split('@')[1];\n    if (domain && !domain.includes('gmail') && !domain.includes('yahoo') && !domain.includes('hotmail') && !domain.includes('outlook')) {\n      orgName = domain.split('.')[0].charAt(0).toUpperCase() + domain.split('.')[0].slice(1);\n    }\n  }\n\n  const startTime = event.json.start?.dateTime || event.json.start?.date || '';\n\n  // Mark as processed BEFORE returning so next run skips it\n  staticData.processedEvents[event.json.id] = Date.now();\n\n  return {\n    json: {\n      eventId: event.json.id,\n      title: event.json.summary,\n      contactName,\n      contactEmail,\n      orgName,\n      startTime,\n      calendarLink: event.json.htmlLink || ''\n    }\n  };\n});\n\nreturn results;"
+      },
+      "id": "38b0c09e-3f13-4509-bf36-bbca6ca71842",
+      "name": "Extract Call Details",
+      "type": "n8n-nodes-base.code",
+      "position": [
+        512,
+        688
+      ],
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=You are a research analyst for [your company], a capacity building consultancy that helps organizations strengthen their internal capabilities — including leadership development, team performance, operational systems, and strategic planning.\n\nPrepare a pre-call research brief for an upcoming call: \"{{ $json.title }}\"\nOrganization: {{ $json.orgName }}\nContact person: {{ $json.contactName }} ({{ $json.contactEmail }})\nScheduled: {{ $json.startTime.substring(0, 10) }} at {{ $json.startTime.substring(11, 16) }}\n\n## Your Research Process\n\nYou have access to a web scraping tool. USE IT to gather real information. Do not guess or fabricate.\n\n**Step 1: Research the organization**\n- Scrape the organization's website (try https://{{ $json.contactEmail.split('@')[1] }} if the contact has a corporate email)\n- Look for: what they do, their mission, team size, recent news, programs, or services\n\n**Step 2: Research the contact person**\n- Scrape their LinkedIn profile or any public bio page if you can find one\n- Look for: their role, background, how long they've been at the org\n\n**Step 3: Look for recent news**\n- Try scraping a Google search results page or news page about the organization\n- Look for: funding, leadership changes, expansions, partnerships, or public announcements\n\n## Output Requirements\n\nBased on your research, provide:\n\n1. **Organization Background**: What does this organization do? What sector are they in? Approximate size if known. Any recent news, funding rounds, or leadership changes. Cite specific facts you found from scraping — do not make up information.\n\n2. **Capacity Signals**: Based on what you found on their website and public information, what capacity gaps might they be experiencing? Be specific to THIS organization — e.g. if they're scaling fast, mention leadership pipeline gaps; if they're a nonprofit, mention donor dependency or team burnout risks.\n\n3. **Suggested Opening Questions**: Provide 3 conversation starters that reference specific things you found in your research. Questions should uncover their real needs without being presumptuous. Frame them around capacity building themes.\n\n4. **What to Avoid**: Any sensitive topics, recent controversies, or areas to handle carefully based on what you found. If nothing specific, note general best practices for this type of organization.\n\nKeep the total brief under 300 words. Be specific and factual — cite what you found. If a scrape fails or returns no useful data, note that and provide your best analysis based on available information.",
+        "hasOutputParser": true,
+        "options": {}
+      },
+      "id": "bf21832f-fd4a-44a2-8edc-ab64e394f1e2",
+      "name": "Research Brief Generator",
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "position": [
+        800,
+        688
+      ],
+      "typeVersion": 3.1
+    },
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "mode": "list",
+          "value": "cx/gpt-5.5",
+          "cachedResultName": "cx/gpt-5.5"
+        },
+        "builtInTools": {},
+        "options": {}
+      },
+      "id": "044b3308-ad08-499f-8e2a-4c412d8bb8f3",
+      "name": "GPT-5 Mini Model",
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "position": [
+        704,
+        800
+      ],
+      "typeVersion": 1.3
+    },
+    {
+      "parameters": {
+        "jsonSchemaExample": "{\n  \"org_background\": \"TechCorp (techcorp.io) is a mid-size HR-tech SaaS company with approximately 200 employees, founded in 2019. They provide workforce analytics tools for enterprise HR teams. Recently raised Series B ($15M) in Q3 2025 led by Accel. New VP of People (Sarah Chen) appointed January 2026 — previously at Stripe. Their website highlights rapid expansion into APAC markets.\",\n  \"capacity_signals\": \"Post-Series B hypergrowth is likely straining their middle-management layer — their careers page lists 30+ open roles across 4 new teams. Leadership pipeline gaps are common at this stage. Their blog mentions 'culture growing pains' in a recent post, suggesting team alignment and operational processes haven't scaled with headcount. The APAC expansion adds cross-cultural leadership complexity.\",\n  \"suggested_opening_questions\": [\n    \"I saw TechCorp recently expanded into APAC — how has that affected your leadership team's bandwidth and the way you develop managers across regions?\",\n    \"Your careers page shows significant hiring across several new teams. How are you approaching the challenge of getting new team leads up to speed while maintaining your culture?\",\n    \"With Sarah Chen joining as VP of People earlier this year, has the organization started rethinking how it develops internal leaders at scale?\"\n  ],\n  \"what_to_avoid\": \"Their Glassdoor reviews (3.4 stars) mention concerns about rapid culture change and manager readiness — do not reference Glassdoor directly, but listen for signals around team morale and leadership support. Avoid asking about their Series A struggles (reported layoffs in 2023) unless they bring it up.\"\n}"
+      },
+      "id": "1a89b42c-5fea-482e-b423-a06af18ea3f7",
+      "name": "Brief Schema Parser",
+      "type": "@n8n/n8n-nodes-langchain.outputParserStructured",
+      "position": [
+        1040,
+        800
+      ],
+      "typeVersion": 1.3
+    },
+    {
+      "parameters": {
+        "query": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('Query', ``, 'string') }}",
+        "resource": "MapSearch",
+        "operation": "search",
+        "requestOptions": {}
+      },
+      "id": "4e06bf6a-00b5-4a73-921d-5eb8bb131f4a",
+      "name": "Scrape Web Pages",
+      "type": "@mendable/n8n-nodes-firecrawl.firecrawlTool",
+      "position": [
+        896,
+        848
+      ],
+      "typeVersion": 1,
+      "credentials": {}
+    },
+    {
+      "parameters": {
+        "resource": "fileFolder",
+        "queryString": "={{ $('Extract Call Details').item.json.orgName }}",
+        "limit": 1,
+        "filter": {
+          "driveId": {
+            "__rl": true,
+            "mode": "list",
+            "value": "My Drive",
+            "cachedResultUrl": "https://drive.google.com/drive/my-drive",
+            "cachedResultName": "My Drive"
+          },
+          "folderId": {
+            "__rl": true,
+            "mode": "list",
+            "value": "1leAqV8umgHqqBU7IfoG8QpuAd6T2t3Ml"
+          }
+        },
+        "options": {}
+      },
+      "id": "6af7d4f8-65bc-45a5-9e57-2c85ba9605c1",
+      "name": "Search Client Folder",
+      "type": "n8n-nodes-base.googleDrive",
+      "position": [
+        1200,
+        688
+      ],
+      "typeVersion": 3,
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "version": 3,
+            "leftValue": "",
+            "caseSensitive": true,
+            "typeValidation": "strict"
+          },
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "folder-check",
+              "operator": {
+                "type": "string",
+                "operation": "exists",
+                "singleValue": true
+              },
+              "leftValue": "={{ $json.id }}",
+              "rightValue": ""
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "abee24ce-c64c-4474-a14e-690b3452143a",
+      "name": "Folder Exists?",
+      "type": "n8n-nodes-base.if",
+      "position": [
+        1424,
+        688
+      ],
+      "typeVersion": 2.3,
+      "alwaysOutputData": false
+    },
+    {
+      "parameters": {
+        "resource": "folder",
+        "name": "={{ new Date($('Extract Call Details').item.json.startTime).toISOString().slice(0, 10) }} - {{ $('Extract Call Details').item.json.orgName }}",
+        "driveId": {
+          "__rl": true,
+          "mode": "list",
+          "value": "My Drive",
+          "cachedResultUrl": "https://drive.google.com/drive/my-drive",
+          "cachedResultName": "My Drive"
+        },
+        "folderId": {
+          "__rl": true,
+          "mode": "list",
+          "value": "root",
+          "cachedResultUrl": "https://drive.google.com/drive",
+          "cachedResultName": "/ (Root folder)"
+        },
+        "options": {}
+      },
+      "id": "02c562dd-ac4f-47f1-acde-ffbcfc5a459b",
+      "name": "Create Client Folder",
+      "type": "n8n-nodes-base.googleDrive",
+      "position": [
+        1648,
+        784
+      ],
+      "typeVersion": 3
+    },
+    {
+      "parameters": {
+        "operation": "createFromText",
+        "content": "=PRE-CALL RESEARCH BRIEF\n{{ $('Extract Call Details').first().json.orgName }} | {{ $('Extract Call Details').first().json.startTime.substring(0, 10) }}\nContact: {{ $('Extract Call Details').first().json.contactName }}\n============================================================\n\nORGANIZATION BACKGROUND\n{{ $('Research Brief Generator').first().json.output.org_background }}\n\nCAPACITY SIGNALS\n{{ $('Research Brief Generator').first().json.output.capacity_signals }}\n\nSUGGESTED OPENING QUESTIONS\n{{ $('Research Brief Generator').first().json.output.suggested_opening_questions.map((q, i) => (i+1) + '. ' + q).join('\\n') }}\n\nWHAT TO AVOID\n{{ $('Research Brief Generator').first().json.output.what_to_avoid }}\n",
+        "name": "=Pre-Call Brief — {{ $('Extract Call Details').first().json.orgName }}",
+        "driveId": {
+          "__rl": true,
+          "mode": "list",
+          "value": "My Drive"
+        },
+        "folderId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "={{ $json.id || $('Create Client Folder').item.json.id }}"
+        },
+        "options": {}
+      },
+      "id": "57e3c6fe-c64a-4dd9-84ca-326c3e3077b6",
+      "name": "Save Brief to Drive",
+      "type": "n8n-nodes-base.googleDrive",
+      "position": [
+        1856,
+        672
+      ],
+      "typeVersion": 3
+    },
+    {
+      "parameters": {
+        "select": "channel",
+        "channelId": {
+          "__rl": true,
+          "mode": "list",
+          "value": "#ops"
+        },
+        "text": "=📋 *PRE-CALL BRIEF READY*\n\n*Call:* {{ $(\"Extract Call Details\").item.json.title }}\n*Organization:* {{ $(\"Extract Call Details\").item.json.orgName }}\n*Contact:* {{ $(\"Extract Call Details\").item.json.contactName }}\n*When:* {{ $(\"Extract Call Details\").item.json.startTime.substring(0, 10) }} at {{ $(\"Extract Call Details\").item.json.startTime.substring(11, 16) }}\n\n---\n*Background:*\n{{ $('Research Brief Generator').item.json.output.org_background }}\n\n*Capacity Signals:*\n{{ $('Research Brief Generator').item.json.output.capacity_signals }}\n\n*Opening Questions:*\n{{ $('Research Brief Generator').item.json.output.suggested_opening_questions.map((q, i) => (i+1) + '. ' + q).join('\\n') }}\n\n*Watch Out:*\n{{ $('Research Brief Generator').item.json.output.what_to_avoid }}\n---\n\n📁 *Client Folder:* https://drive.google.com/drive/u/1/folders/{{ $('Create Client Folder').item.json.id }}",
+        "otherOptions": {}
+      },
+      "id": "84b90e1c-8fb2-4722-bd74-7b5fa4a3f4d3",
+      "name": "Notify Ops Channel",
+      "type": "n8n-nodes-base.slack",
+      "position": [
+        2096,
+        672
+      ],
+      "webhookId": "3b413c00-248a-41cc-96ed-382d28250c7b",
+      "typeVersion": 2.4
+    },
+    {
+      "parameters": {
+        "content": "## Pre-Call Research Brief\n\n### How it works\n1. Run daily at 4pm and calculate a 24–26 hour window for \"tomorrow\", then fetch Google Calendar events in that window.\n2. Identify likely client calls by keyword (discovery, call, meeting, NCA) and exclude events already briefed.\n3. Use a web-scraping tool plus the language model to research the organization and contact and generate a concise pre-call brief (background, capacity signals, opening questions, what to avoid).\n4. Save the brief to the client's Google Drive folder (create the folder if missing) and post a notification with the brief summary and Drive link to the ops Slack channel.\n\n### Setup\n- [ ] Connect your Google Calendar account.\n- [ ] Connect Google Drive and select or create the \"CLIENTS\" folder.\n- [ ] Connect Slack and pick the channel to notify (e.g., #ops).\n- [ ] Add your OpenAI API key for the language model.\n- [ ] Add credentials for the web-scraping tool (Firecrawl / Mendable).\n- [ ] Confirm the schedule runs daily at 16:00 (4:00pm) or adjust as needed.",
+        "height": 656,
+        "width": 448
+      },
+      "id": "f8b94a39-e32b-4398-a39c-819b3fc5facb",
+      "name": "Sticky Note",
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        -160,
+        0
+      ],
+      "typeVersion": 1
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Folder Exists?": {
+      "main": [
+        [
+          {
+            "node": "Save Brief to Drive",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Create Client Folder",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "GPT-5 Mini Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Research Brief Generator",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Scrape Web Pages": {
+      "ai_tool": [
+        [
+          {
+            "node": "Research Brief Generator",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Daily 4PM Trigger": {
+      "main": [
+        [
+          {
+            "node": "Calculate Tomorrow Window",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Brief Schema Parser": {
+      "ai_outputParser": [
+        [
+          {
+            "node": "Research Brief Generator",
+            "type": "ai_outputParser",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Save Brief to Drive": {
+      "main": [
+        [
+          {
+            "node": "Notify Ops Channel",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create Client Folder": {
+      "main": [
+        [
+          {
+            "node": "Save Brief to Drive",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract Call Details": {
+      "main": [
+        [
+          {
+            "node": "Research Brief Generator",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Search Client Folder": {
+      "main": [
+        [
+          {
+            "node": "Folder Exists?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch Calendar Events": {
+      "main": [
+        [
+          {
+            "node": "Extract Call Details",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Research Brief Generator": {
+      "main": [
+        [
+          {
+            "node": "Search Client Folder",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Calculate Tomorrow Window": {
+      "main": [
+        [
+          {
+            "node": "Fetch Calendar Events",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "availableInMCP": false
+  },
+  "versionId": "59c2976c-eac8-44cf-8d17-9f23ba0ad929",
+  "meta": {
+    "instanceId": "582967534d0f909d196b97f9e6921342777aea87b46fa52df165389db1fb8ccf"
+  },
+  "id": "EmvISVe24Y0uAN1T",
+  "tags": []
+}

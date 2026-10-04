@@ -1,0 +1,786 @@
+{
+  "name": "AI Autonomous Research Agent System",
+  "nodes": [
+    {
+      "parameters": {
+        "jsCode": "const organicResults = $json.organic || [];\n\nreturn organicResults.slice(0, 5).map(result => {\n  return {\n    json: {\n      searchQuery: $json.searchParameters.q,\n      title: result.title,\n      snippet: result.snippet,\n      url: result.link,\n      sourceDate: result.date || null,\n      position: result.position\n    }\n  };\n});"
+      },
+      "id": "b80f81a7-53f8-47ed-9ae4-3f137dcad49d",
+      "name": "Extract Search Results",
+      "type": "n8n-nodes-base.code",
+      "position": [
+        2000,
+        368
+      ],
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "research-agent",
+        "options": {}
+      },
+      "id": "f20c2571-8ae0-4a15-b293-d57e3d2446d4",
+      "name": "Receive Research Topic",
+      "type": "n8n-nodes-base.webhook",
+      "position": [
+        592,
+        384
+      ],
+      "webhookId": "20918dad-c7d7-4d0c-92ee-fbf5b4414e87",
+      "typeVersion": 2.1
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "version": 3,
+            "leftValue": "",
+            "caseSensitive": true,
+            "typeValidation": "strict"
+          },
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "3e7ed4c8-cb28-4a2f-8ecd-46e09d670bb0",
+              "operator": {
+                "type": "string",
+                "operation": "notEmpty",
+                "singleValue": true
+              },
+              "leftValue": "={{ $json.body.topic }}",
+              "rightValue": ""
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "45865637-3bc7-4d8f-9b64-464bb801096a",
+      "name": "Check Topic Is Valid",
+      "type": "n8n-nodes-base.if",
+      "position": [
+        832,
+        384
+      ],
+      "typeVersion": 2.3
+    },
+    {
+      "parameters": {
+        "respondWith": "text",
+        "responseBody": "Topic is required",
+        "options": {}
+      },
+      "id": "f03718a6-5214-45ce-b2e5-fdce0a268321",
+      "name": "Send Missing Topic Message",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "position": [
+        1344,
+        752
+      ],
+      "typeVersion": 1.5
+    },
+    {
+      "parameters": {
+        "modelId": {
+          "__rl": true,
+          "mode": "list",
+          "value": "gpt-4.1-mini",
+          "cachedResultName": "GPT-4.1-MINI"
+        },
+        "responses": {
+          "values": [
+            {
+              "role": "system",
+              "content": "You are an expert research query generator.\n\nYour job is to create high-quality Google search queries for research.\n\nReturn ONLY valid JSON array.\n\nNo markdown.\nNo explanations."
+            },
+            {
+              "content": "=Generate 5 detailed search queries for this topic:\n\n{{ $json.body.topic }}"
+            }
+          ]
+        },
+        "builtInTools": {},
+        "options": {}
+      },
+      "id": "c9d4ebaa-80b7-4322-8189-02512dfa88dd",
+      "name": "Create AI Search Queries",
+      "type": "@n8n/n8n-nodes-langchain.openAi",
+      "position": [
+        1184,
+        368
+      ],
+      "typeVersion": 2.1
+    },
+    {
+      "parameters": {
+        "jsCode": "const text = $json.output[0].content[0].text;\n\nconst queries = JSON.parse(text);\n\nreturn queries.map(query => {\n  return {\n    json: {\n      query\n    }\n  };\n});"
+      },
+      "id": "923a925a-3ce9-424f-8e46-cae3514c6869",
+      "name": "Format Search Queries",
+      "type": "n8n-nodes-base.code",
+      "position": [
+        1488,
+        368
+      ],
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "YOUR_GOOGLE_SERPER_API",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-API-KEY",
+              "value": "7508ab9784555a7fdab0239564ad8565223b6794"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"q\": \"{{ $json.query }}\"\n}",
+        "options": {}
+      },
+      "id": "473c00ce-b2be-49cf-8fe0-69c7a04be0e0",
+      "name": "Search Articles On Internet",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [
+        1792,
+        368
+      ],
+      "typeVersion": 4.4
+    },
+    {
+      "parameters": {
+        "maxItems": 10
+      },
+      "id": "e2bc1c36-dc3c-41d1-8f2c-8bfeb7bde580",
+      "name": "Limit Research Articles",
+      "type": "n8n-nodes-base.limit",
+      "position": [
+        2208,
+        368
+      ],
+      "typeVersion": 1
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "fa97ffc0-9bf4-4ae8-9aac-ee43eaede672",
+              "name": "readerUrl",
+              "type": "string",
+              "value": "={{ \"https://r.jina.ai/http://\" + $json.url.replace(\"https://\", \"\").replace(\"http://\", \"\") }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "4e5a2eb9-d396-4b3b-8a96-6b8fb9520703",
+      "name": "Create Jina Reader URL",
+      "type": "n8n-nodes-base.set",
+      "position": [
+        2416,
+        368
+      ],
+      "typeVersion": 3.4
+    },
+    {
+      "parameters": {
+        "url": "={{ $json.readerUrl }}",
+        "options": {}
+      },
+      "id": "7395c7b5-c31a-4749-8c51-56295d8cb542",
+      "name": "Read Full Article Content",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [
+        2720,
+        368
+      ],
+      "typeVersion": 4.4
+    },
+    {
+      "parameters": {
+        "jsCode": "const article = $json.data || $json.body || \"\";\n\nconst cleanedArticle = article\n  .replace(/\\n+/g, \"\\n\")\n  .replace(/\\s+/g, \" \")\n  .trim()\n  .substring(0, 12000);\n\nreturn [\n  {\n    json: {\n      searchQuery: $('Extract Search Results').item.json.searchQuery,\n      title: $('Extract Search Results').item.json.title,\n      url: $('Extract Search Results').item.json.url,\n      article: cleanedArticle\n    }\n  }\n];"
+      },
+      "id": "a713344a-c29d-453b-8d13-eb797c93d71c",
+      "name": "Clean Article Text",
+      "type": "n8n-nodes-base.code",
+      "position": [
+        2928,
+        368
+      ],
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "modelId": {
+          "__rl": true,
+          "mode": "list",
+          "value": "gpt-4.1-mini",
+          "cachedResultName": "GPT-4.1-MINI"
+        },
+        "responses": {
+          "values": [
+            {
+              "role": "system",
+              "content": "You are an expert AI research analyst.\n\nAnalyze the provided article and extract the most important research insights.\n\nReturn ONLY valid JSON.\n\nDo not include markdown.\nDo not include explanations."
+            },
+            {
+              "content": "=Analyze this research article.\n\nTitle:\n{{$json.title}}\n\nURL:\n{{$json.url}}\n\nArticle Content:\n{{$json.article}}\n\nReturn this exact JSON structure:\n\n{\n  \"title\": \"\",\n  \"summary\": \"\",\n  \"keyInsights\": [],\n  \"importantTools\": [],\n  \"mainTrends\": [],\n  \"finalConclusion\": \"\"\n}"
+            }
+          ]
+        },
+        "builtInTools": {},
+        "options": {}
+      },
+      "id": "91e41f67-f06e-47f2-a7c5-8f3d76f78718",
+      "name": "Summarize Article With AI",
+      "type": "@n8n/n8n-nodes-langchain.openAi",
+      "position": [
+        3120,
+        368
+      ],
+      "typeVersion": 2.1
+    },
+    {
+      "parameters": {
+        "jsCode": "const articles = items.map(item => {\n  const text = item.json.output[0].content[0].text;\n  return JSON.parse(text);\n});\n\nreturn [\n  {\n    json: {\n      articles\n    }\n  }\n];"
+      },
+      "id": "240097c7-5fec-4e9a-aa79-68fddb02bb61",
+      "name": "Format Summary Data",
+      "type": "n8n-nodes-base.code",
+      "position": [
+        3424,
+        368
+      ],
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "modelId": {
+          "__rl": true,
+          "mode": "list",
+          "value": "gpt-4.1-mini",
+          "cachedResultName": "GPT-4.1-MINI"
+        },
+        "responses": {
+          "values": [
+            {
+              "role": "system",
+              "content": "You are an expert AI research analyst.\n\nAnalyze multiple research article summaries.\n\nYour job:\n- identify common trends\n- compare findings\n- detect repeated insights\n- identify important tools/platforms\n- generate professional research conclusions\n\nReturn ONLY valid JSON.\n\nNo markdown.\nNo explanation."
+            },
+            {
+              "content": "=Analyze these research summaries:\n\n{{ JSON.stringify($json.articles) }}"
+            }
+          ]
+        },
+        "builtInTools": {},
+        "options": {}
+      },
+      "id": "b0345d53-4a3e-44d7-a444-aaa357433c4e",
+      "name": "Analyze Research Insights",
+      "type": "@n8n/n8n-nodes-langchain.openAi",
+      "position": [
+        3760,
+        368
+      ],
+      "typeVersion": 2.1
+    },
+    {
+      "parameters": {
+        "jsCode": "const rawText = $json.output[0].content[0].text;\n\nconst data = JSON.parse(rawText);\n\nconst report = `\n# AI Research Report\n\n## Common Trends\n${data.commonTrends.map(t => `- ${t}`).join('\\n')}\n\n## Compared Findings\n${Object.entries(data.comparedFindings)\n  .map(([k,v]) => `### ${k}\\n${v}`)\n  .join('\\n\\n')}\n\n## Repeated Insights\n${data.repeatedInsights.map(i => `- ${i}`).join('\\n')}\n\n## Important Tools\n${data.importantToolsPlatforms\n  .map(t => `- ${t.name}: ${t.useCase}`)\n  .join('\\n')}\n\n## Final Conclusion\n${data.professionalResearchConclusions}\n`;\n\nreturn [{\n  json: {\n    report\n  }\n}];"
+      },
+      "id": "55eff2e6-db8a-461d-a5cb-7b6711b88b75",
+      "name": "Create Final Research Report",
+      "type": "n8n-nodes-base.code",
+      "position": [
+        4080,
+        368
+      ],
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "jsCode": "const report = $json.report;\n\nconst html = `\n<html>\n<head>\n  <style>\n    body {\n      font-family: Arial;\n      padding: 30px;\n      line-height: 1.6;\n    }\n    h1 {\n      color: #222;\n    }\n    h2 {\n      color: #444;\n      margin-top: 25px;\n    }\n  </style>\n</head>\n<body>\n${report\n  .replace(/^# (.*$)/gim, '<h1>$1</h1>')\n  .replace(/^## (.*$)/gim, '<h2>$1</h2>')\n  .replace(/^### (.*$)/gim, '<h3>$1</h3>')\n  .replace(/^\\- (.*$)/gim, '<li>$1</li>')\n  .replace(/\\n/g, '<br>')}\n</body>\n</html>\n`;\n\nreturn [{\n  json: {\n    html\n  }\n}];"
+      },
+      "id": "854f132d-fe1c-4c31-a86b-2ca743b1511a",
+      "name": "Generate Report HTML",
+      "type": "n8n-nodes-base.code",
+      "position": [
+        4288,
+        368
+      ],
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "YOUR_CREATE_PDF_URL_HERE",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "x-api-key",
+              "value": "YOUR_API_KEY"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "html",
+              "value": "={{ $json.html }}"
+            },
+            {
+              "name": "printbackground",
+              "value": "true"
+            },
+            {
+              "name": "name",
+              "value": "=Articale Summry.pdf"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "05f157b2-e3ea-4a5d-bf5f-ebd91dddc794",
+      "name": "Convert Report To PDF",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [
+        4624,
+        368
+      ],
+      "typeVersion": 4.3
+    },
+    {
+      "parameters": {
+        "url": "={{ $json.url }}",
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "file"
+            }
+          }
+        }
+      },
+      "id": "48e469d0-3cdc-4a0c-93ec-69eddd1d32f2",
+      "name": "Download PDF File",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [
+        4832,
+        368
+      ],
+      "typeVersion": 4.3
+    },
+    {
+      "parameters": {
+        "sendTo": "user@example.com",
+        "subject": "AI Research Report Ready",
+        "emailType": "text",
+        "message": "Please find attached the AI-generated research report.",
+        "options": {
+          "appendAttribution": false,
+          "attachmentsUi": {
+            "attachmentsBinary": [
+              {}
+            ]
+          }
+        }
+      },
+      "id": "dac9ce89-6c7c-408b-b6c1-3d4d55cbe4a4",
+      "name": "Send Research Report Email",
+      "type": "n8n-nodes-base.gmail",
+      "position": [
+        5184,
+        368
+      ],
+      "webhookId": "158bd2bc-2d8c-47a3-9486-6a4d334a5ed8",
+      "typeVersion": 2.2
+    },
+    {
+      "parameters": {
+        "respondWith": "text",
+        "responseBody": "Reaserch Data created successfully",
+        "options": {}
+      },
+      "id": "1f8eab49-a5f7-4177-8fd9-a48cd7930a70",
+      "name": "Respond to Webhook",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "position": [
+        5392,
+        368
+      ],
+      "typeVersion": 1.5
+    },
+    {
+      "parameters": {
+        "content": "If the research topic is missing, this node sends an error response asking the user to enter a valid topic.",
+        "height": 288,
+        "width": 496,
+        "color": 7
+      },
+      "id": "8c728888-16d4-4119-968c-2dd3ae0c2e9b",
+      "name": "Sticky Note",
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        1168,
+        624
+      ],
+      "typeVersion": 1
+    },
+    {
+      "parameters": {
+        "content": "## Recevie Research Topic & Validation\n\nThis section receives the research topic from the user and checks whether the topic is valid before starting the AI research workflow.",
+        "height": 432,
+        "width": 496,
+        "color": 7
+      },
+      "id": "b31ce031-887f-4f9c-af8c-06e594f270a1",
+      "name": "Sticky Note1",
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        528,
+        128
+      ],
+      "typeVersion": 1
+    },
+    {
+      "parameters": {
+        "content": "## AI Search Query Generation\n\nThis section uses AI to generate multiple smart research search queries and converts the response into structured search data for the workflow.",
+        "height": 432,
+        "width": 576,
+        "color": 7
+      },
+      "id": "d5fe023d-5578-49ef-b46e-62b95bdb9754",
+      "name": "Sticky Note2",
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        1088,
+        128
+      ],
+      "typeVersion": 1
+    },
+    {
+      "parameters": {
+        "content": "## Article Collection & Preparation\n\nThis section searches research articles on the internet, extracts useful search results, limits the number of articles, and prepares Jina Reader URLs for reading full article content.",
+        "height": 432,
+        "width": 880,
+        "color": 7
+      },
+      "id": "c341f83f-93ca-44b7-8bd3-fc8f81da4bcf",
+      "name": "Sticky Note3",
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        1696,
+        128
+      ],
+      "typeVersion": 1
+    },
+    {
+      "parameters": {
+        "content": "## AI Article Reading & Summarization \n\nThis section reads full article content, cleans unnecessary text, generates AI-powered summaries, and formats the summarized research data into a structured format.",
+        "height": 432,
+        "width": 1008,
+        "color": 7
+      },
+      "id": "ec190d2f-c881-4e18-a0a8-d33e0d54d7f3",
+      "name": "Sticky Note4",
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        2608,
+        128
+      ],
+      "typeVersion": 1
+    },
+    {
+      "parameters": {
+        "content": "## Research Analysis & Report Generation\n\nThis section analyzes research insights from multiple articles, creates the final AI research report, and generates the HTML layout for PDF creation.",
+        "height": 432,
+        "width": 800,
+        "color": 7
+      },
+      "id": "a41bf469-669e-4ac2-942b-b8a6bafbc2c8",
+      "name": "Sticky Note5",
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        3648,
+        128
+      ],
+      "typeVersion": 1
+    },
+    {
+      "parameters": {
+        "content": "## PDF Generation & Download\n\nThis section converts the final research report into a PDF file and downloads the PDF so it can be attached to the email.",
+        "height": 432,
+        "width": 560,
+        "color": 7
+      },
+      "id": "64d891e6-8d07-4089-a353-59f4af5d57fc",
+      "name": "Sticky Note6",
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        4480,
+        128
+      ],
+      "typeVersion": 1
+    },
+    {
+      "parameters": {
+        "content": "## Email Delivery & Workflow Response\n\nThis section sends the final research report PDF to the user through email and returns a success response after the workflow is completed.",
+        "height": 432,
+        "width": 544,
+        "color": 7
+      },
+      "id": "24179b05-d8b6-4003-b3e5-a711d022e117",
+      "name": "Sticky Note7",
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        5072,
+        128
+      ],
+      "typeVersion": 1
+    },
+    {
+      "parameters": {
+        "content": "## How it works\n\nThis workflow automatically performs AI-powered internet research based on a topic provided by the user. It generates smart search queries using AI, searches articles from the internet, reads full article content using Jina AI Reader, and cleans unnecessary text from the articles. The workflow then summarizes each article with AI, extracts important insights, compares findings across multiple sources, and generates a professional research report. Finally, the report is converted into a PDF file and automatically sent to the user through email.\n\n## Setup steps\n\n**1.** Add your OpenAI API credentials for AI processing and summarization.\n**2.** Configure the Google Search API or search provider credentials.\n**3.** Add the Jina AI Reader URL setup for reading full article content.\n**4.** Configure the PDF generation service/API credentials.\n**5.** Connect your Gmail account for sending the final report email.\n**6.** Update the webhook URL and send a research topic in the request body.\n**7.** Test the workflow with a sample research topic and verify email delivery.",
+        "height": 608,
+        "width": 688
+      },
+      "id": "6f9b2266-169a-41eb-9152-50199577f50e",
+      "name": "Sticky Note8",
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        -208,
+        -48
+      ],
+      "typeVersion": 1
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Download PDF File": {
+      "main": [
+        [
+          {
+            "node": "Send Research Report Email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Clean Article Text": {
+      "main": [
+        [
+          {
+            "node": "Summarize Article With AI",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format Summary Data": {
+      "main": [
+        [
+          {
+            "node": "Analyze Research Insights",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check Topic Is Valid": {
+      "main": [
+        [
+          {
+            "node": "Create AI Search Queries",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Send Missing Topic Message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Generate Report HTML": {
+      "main": [
+        [
+          {
+            "node": "Convert Report To PDF",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Convert Report To PDF": {
+      "main": [
+        [
+          {
+            "node": "Download PDF File",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format Search Queries": {
+      "main": [
+        [
+          {
+            "node": "Search Articles On Internet",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create Jina Reader URL": {
+      "main": [
+        [
+          {
+            "node": "Read Full Article Content",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract Search Results": {
+      "main": [
+        [
+          {
+            "node": "Limit Research Articles",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Receive Research Topic": {
+      "main": [
+        [
+          {
+            "node": "Check Topic Is Valid",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Limit Research Articles": {
+      "main": [
+        [
+          {
+            "node": "Create Jina Reader URL",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create AI Search Queries": {
+      "main": [
+        [
+          {
+            "node": "Format Search Queries",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Analyze Research Insights": {
+      "main": [
+        [
+          {
+            "node": "Create Final Research Report",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read Full Article Content": {
+      "main": [
+        [
+          {
+            "node": "Clean Article Text",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Summarize Article With AI": {
+      "main": [
+        [
+          {
+            "node": "Format Summary Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Research Report Email": {
+      "main": [
+        [
+          {
+            "node": "Respond to Webhook",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Search Articles On Internet": {
+      "main": [
+        [
+          {
+            "node": "Extract Search Results",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create Final Research Report": {
+      "main": [
+        [
+          {
+            "node": "Generate Report HTML",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "availableInMCP": false
+  },
+  "versionId": "ec6ff5c6-09f6-4466-8f17-2e0ad20f5f32",
+  "meta": {
+    "instanceId": "582967534d0f909d196b97f9e6921342777aea87b46fa52df165389db1fb8ccf"
+  },
+  "id": "FhsUVKn2WfOCxxG8",
+  "tags": []
+}
